@@ -1,19 +1,13 @@
 use pyo3::prelude::*;
-use pyo3::types::*;
 use pyo3::PyIterProtocol;
 
-use std::collections::HashMap;
-use std::fs::File;
-use std::io::prelude::*;
-use sv_parser::{parse_sv, NodeEvent, RefNode, SyntaxTree};
+use sv_parser::{NodeEvent, RefNode, SyntaxTree};
 
-use crate::defines::PyDefine;
 use crate::iterators::*;
 
-/// Base object for creating a syntax tree.
+/// Representation of a top-level syntax tree.
 ///
-/// Use this class to parse a file, and then it can be used as an iterator
-/// to traverse the tree.
+/// Iterate on this class to iterate through the entire tree.
 #[pyclass(name=SyntaxTree)]
 #[text_signature = "(path, pre_defines, include_paths, ignore_include)"]
 pub struct PySyntaxTree {
@@ -28,71 +22,6 @@ pub struct PySyntaxTree {
 // TODO implement pre_defines... somehow
 #[pymethods]
 impl PySyntaxTree {
-    /// Parses the given file for it's CST.
-    #[new]
-    fn new(
-        path: &str,
-        pre_defines: &pyo3::types::PyDict,
-        include_paths: Vec<String>,
-        ignore_include: bool,
-    ) -> PyResult<Self> {
-        // Convert dictionary to correct define types
-        // TODO should I just directly map from a dict?
-        // do I really need my custom types?
-        let mut defines = HashMap::new();
-        for key in pre_defines.keys() {
-            let define = pre_defines.get_item(key).unwrap();
-            let define = match define.extract::<PyDefine>() {
-                Ok(def) => Some(def.into_define()),
-                Err(_) => None,
-            };
-            let key = key.downcast::<PyString>().unwrap();
-            let key = key.to_string();
-            defines.insert(key.clone(), define);
-        }
-
-        let (tree, _defines) = match parse_sv(path, &defines, &include_paths, ignore_include, true)
-        {
-            Ok(results) => results,
-            Err(e) => {
-                return Err(pyo3::exceptions::PyArithmeticError::new_err(format!(
-                    "{}",
-                    e
-                )))
-            }
-        };
-
-        // Grab first node
-        let node = (&tree).into_iter().next().unwrap();
-
-        // Read in original file
-        let mut text = String::new();
-        let mut file = match File::open(path) {
-            Ok(file) => file,
-            Err(e) => {
-                return Err(pyo3::exceptions::PyFileNotFoundError::new_err(format!(
-                    "{}",
-                    e
-                )));
-            }
-        };
-        match file.read_to_string(&mut text) {
-            Err(e) => {
-                return Err(pyo3::exceptions::PyFileNotFoundError::new_err(format!(
-                    "{}",
-                    e
-                )));
-            }
-            _ => (),
-        }
-
-        let tree = PySyntaxNode::build_tree(node, &tree);
-        Ok(PySyntaxTree {
-            tree: tree,
-            text: text,
-        })
-    }
-
     /// Gets the original string from a node.
     #[text_signature = "($self, node)"]
     fn get_str(&self, node: &PySyntaxNode) -> Option<String> {
@@ -145,7 +74,7 @@ pub struct PySyntaxNode {
 
 impl PySyntaxNode {
     /// Helper function used to create the tree.
-    fn build_tree(node: RefNode, tree: &SyntaxTree) -> Self {
+    pub fn build_tree(node: RefNode, tree: &SyntaxTree) -> Self {
         let name = format!("{}", node);
         // Basically pulled wholesale from get_str() impl on SyntaxTree
         let mut offset: Option<usize> = None;
@@ -171,9 +100,9 @@ impl PySyntaxNode {
         }
 
         // TODO
-        // SOUNDNESS problem! These lengths are applied to the expanded text...
-        // Maybe we need to disable the preprocessor?
-        // Talk about it with Jonathan
+        // Potential soundness issue, depends on how we want to wrap things.
+        // This gives the preprocessed text length which likely shouldn't go
+        // in a member named "origin"
         let origin: Option<PySyntaxLocation>;
         if let Some(beg) = beg {
             origin = Some(PySyntaxLocation {

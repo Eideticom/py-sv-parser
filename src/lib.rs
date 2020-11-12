@@ -8,16 +8,140 @@
 // Turns out large syntax trees can recurse a lot.
 #![recursion_limit = "256"]
 
+use std::collections::HashMap;
+use std::fs::File;
+use std::io::prelude::*;
+use std::path::PathBuf;
+
+use pyo3::prelude::*;
+use pyo3::types::*;
+use pyo3::{wrap_pyfunction, PyIterProtocol};
+use sv_parser::Define;
+use sv_parser::{parse_sv as lib_parse_sv, parse_sv_str as lib_parse_sv_str};
+
 mod defines;
 mod iterators;
 mod tree;
 
-use pyo3::prelude::*;
-use pyo3::{wrap_pyfunction, PyIterProtocol};
-
 use defines::*;
 use iterators::*;
 use tree::*;
+
+/// Parse file at given path for SV syntax tree.
+#[pyfunction]
+#[text_signature = "(path, pre_defines, include_paths, ignore_include, allow_incomplete)"]
+fn parse_sv(
+    path: &str,
+    pre_defines: &PyDict,
+    include_paths: Vec<String>,
+    ignore_include: bool,
+    allow_incomplete: bool,
+) -> PyResult<PySyntaxTree> {
+    let defines = process_pre_defines(pre_defines);
+    let (tree, _defines) = match lib_parse_sv(
+        path,
+        &defines,
+        &include_paths,
+        ignore_include,
+        allow_incomplete,
+    ) {
+        Ok(results) => results,
+        Err(e) => {
+            return Err(pyo3::exceptions::PyFileNotFoundError::new_err(format!(
+                "{}",
+                e
+            )))
+        }
+    };
+
+    // Grab first node
+    let node = (&tree).into_iter().next().unwrap();
+
+    // Read in original file
+    let mut text = String::new();
+    let mut file = match File::open(path) {
+        Ok(file) => file,
+        Err(e) => {
+            return Err(pyo3::exceptions::PyFileNotFoundError::new_err(format!(
+                "{}",
+                e
+            )));
+        }
+    };
+    match file.read_to_string(&mut text) {
+        Err(e) => {
+            return Err(pyo3::exceptions::PyFileNotFoundError::new_err(format!(
+                "{}",
+                e
+            )));
+        }
+        _ => (),
+    }
+
+    let tree = PySyntaxNode::build_tree(node, &tree);
+    Ok(PySyntaxTree {
+        tree: tree,
+        text: text,
+    })
+}
+
+/// Parse provided text for SV syntax tree.
+#[pyfunction]
+#[text_signature = "(text, path, pre_defines, include_paths, ignore_include, allow_incomplete)"]
+fn parse_sv_str(
+    text: &str,
+    path: &str,
+    pre_defines: &PyDict,
+    include_paths: Vec<String>,
+    ignore_include: bool,
+    allow_incomplete: bool,
+) -> PyResult<PySyntaxTree> {
+    let defines = process_pre_defines(pre_defines);
+    let path = PathBuf::from(path);
+    let (tree, _defines) = match lib_parse_sv_str(
+        text,
+        path,
+        &defines,
+        &include_paths,
+        ignore_include,
+        allow_incomplete,
+    ) {
+        Ok(results) => results,
+        Err(e) => {
+            return Err(pyo3::exceptions::PyFileNotFoundError::new_err(format!(
+                "{}",
+                e
+            )))
+        }
+    };
+
+    // Grab first node
+    let node = (&tree).into_iter().next().unwrap();
+
+    // Read in original file
+    let tree = PySyntaxNode::build_tree(node, &tree);
+    Ok(PySyntaxTree {
+        tree: tree,
+        text: String::from(text),
+    })
+}
+
+/// Transform a Python dictionary into the HashMap required by parse_sv
+fn process_pre_defines(pre_defines: &PyDict) -> HashMap<String, Option<Define>> {
+    // Convert dictionary to correct define types
+    let mut defines = HashMap::new();
+    for key in pre_defines.keys() {
+        let define = pre_defines.get_item(key).unwrap();
+        let define = match define.extract::<PyDefine>() {
+            Ok(def) => Some(def.into_inner()),
+            Err(_) => None,
+        };
+        let key = key.downcast::<PyString>().unwrap();
+        let key = key.to_string();
+        defines.insert(key.clone(), define);
+    }
+    defines
+}
 
 /// Finds the first node of one of the given types in the provided node.
 #[pyfunction]
@@ -57,13 +181,19 @@ fn unwrap_locate(node: PyRefMut<PySyntaxNode>) -> PyResult<Option<Py<PySyntaxNod
 /// Does not export all features, but allows you to build a simple tree from an SV file.
 #[pymodule]
 fn py_sv_parser(_py: Python, module: &PyModule) -> PyResult<()> {
-    module.add_class::<PySyntaxTree>()?;
-    module.add_class::<PyDefine>()?;
+    // Main parsing functions
+    module.add_function(wrap_pyfunction!(parse_sv, module)?)?;
+    module.add_function(wrap_pyfunction!(parse_sv_str, module)?)?;
+
+    // Convenience functions
     module.add_function(wrap_pyfunction!(unwrap_node, module)?)?;
     module.add_function(wrap_pyfunction!(unwrap_locate, module)?)?;
 
     // I'm only adding these classes for typing information, these should
     // not be directly instantiated.
+    module.add_class::<PySyntaxTree>()?;
+    module.add_class::<PyDefine>()?;
+    module.add_class::<PyDefineText>()?;
     module.add_class::<PySyntaxNode>()?;
     module.add_class::<PySyntaxLocation>()?;
 

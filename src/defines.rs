@@ -1,17 +1,16 @@
+use std::path::PathBuf;
+
 use pyo3::prelude::*;
-
 use sv_parser::{Define, DefineText};
+use sv_parser_pp::range::Range;
 
+/// Wrapper python type for sv-parser Define type
+///
+/// Used to specify preprocessor defines.
 #[pyclass(name=Define)]
 #[derive(Clone)]
 pub struct PyDefine {
-    /// ID, "name" of the define
-    pub identifier: String,
-    /// List of arguments, with optional default value
-    pub arguments: Vec<(String, Option<String>)>,
-    /// Text to substitute in.
-    // TODO implement the origin stuff
-    pub text: Option<String>,
+    inner: Define,
 }
 
 #[pymethods]
@@ -20,12 +19,14 @@ impl PyDefine {
     fn new(
         identifier: String,
         arguments: Vec<(String, Option<String>)>,
-        text: Option<String>,
+        text: Option<PyDefineText>,
     ) -> Self {
-        PyDefine {
-            identifier,
-            arguments,
-            text,
+        Self {
+            inner: Define::new(
+                identifier,
+                arguments,
+                text.map_or(None, |t| Some(t.into_inner())),
+            ),
         }
     }
 }
@@ -35,11 +36,43 @@ impl PyDefine {
     ///
     /// Necessary because I can't just apply the pyo3 macros directly to types
     /// from another crate.
-    pub fn into_define(self) -> Define {
-        let text = match self.text {
-            Some(text) => Some(DefineText::new(text, None)),
+    pub fn into_inner(self) -> Define {
+        self.inner
+    }
+}
+
+/// Wrapper python type for sv-parser DefineText type
+///
+/// Used for filling in what a preprocessor define expands to.
+#[pyclass(name=DefineText)]
+#[derive(Clone)]
+pub struct PyDefineText {
+    inner: DefineText,
+}
+
+#[pymethods]
+impl PyDefineText {
+    #[new]
+    fn new(text: String, origin: Option<(String, usize, usize)>) -> Self {
+        let origin = match origin {
+            Some((path, beg, end)) => Some((
+                PathBuf::from(path),
+                Range {
+                    begin: beg,
+                    end: end,
+                },
+            )),
             None => None,
         };
-        Define::new(self.identifier, self.arguments, text)
+
+        Self {
+            inner: DefineText::new(text, origin),
+        }
+    }
+}
+
+impl PyDefineText {
+    pub fn into_inner(self) -> DefineText {
+        self.inner
     }
 }
