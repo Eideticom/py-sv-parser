@@ -3,12 +3,12 @@ use pyo3::types::*;
 use pyo3::PyIterProtocol;
 
 use std::collections::HashMap;
-use sv_parser::{parse_sv, SyntaxTree, NodeEvent, RefNode};
 use std::fs::File;
 use std::io::prelude::*;
+use sv_parser::{parse_sv, NodeEvent, RefNode, SyntaxTree};
 
-use crate::iterators::*;
 use crate::defines::PyDefine;
+use crate::iterators::*;
 
 /// Base object for creating a syntax tree.
 ///
@@ -36,7 +36,6 @@ impl PySyntaxTree {
         include_paths: Vec<String>,
         ignore_include: bool,
     ) -> PyResult<Self> {
-
         // Convert dictionary to correct define types
         // TODO should I just directly map from a dict?
         // do I really need my custom types?
@@ -52,9 +51,15 @@ impl PySyntaxTree {
             defines.insert(key.clone(), define);
         }
 
-        let (tree, _defines) = match parse_sv(path, &defines, &include_paths, ignore_include, true) {
+        let (tree, _defines) = match parse_sv(path, &defines, &include_paths, ignore_include, true)
+        {
             Ok(results) => results,
-            Err(e) => return Err(pyo3::exceptions::PyArithmeticError::new_err(format!("{}", e))),
+            Err(e) => {
+                return Err(pyo3::exceptions::PyArithmeticError::new_err(format!(
+                    "{}",
+                    e
+                )))
+            }
         };
 
         // Grab first node
@@ -65,14 +70,20 @@ impl PySyntaxTree {
         let mut file = match File::open(path) {
             Ok(file) => file,
             Err(e) => {
-                return Err(pyo3::exceptions::PyFileNotFoundError::new_err(format!("{}", e)));
+                return Err(pyo3::exceptions::PyFileNotFoundError::new_err(format!(
+                    "{}",
+                    e
+                )));
             }
         };
         match file.read_to_string(&mut text) {
             Err(e) => {
-                return Err(pyo3::exceptions::PyFileNotFoundError::new_err(format!("{}", e)));
+                return Err(pyo3::exceptions::PyFileNotFoundError::new_err(format!(
+                    "{}",
+                    e
+                )));
             }
-            _ => ()
+            _ => (),
         }
 
         let tree = PySyntaxNode::build_tree(node, &tree);
@@ -86,7 +97,9 @@ impl PySyntaxTree {
     #[text_signature = "($self, node)"]
     fn get_str(&self, node: &PySyntaxNode) -> Option<String> {
         match node.origin.clone() {
-            Some(origin) => Some(String::from(&self.text[origin.offset..origin.offset + origin.len])),
+            Some(origin) => Some(String::from(
+                &self.text[origin.offset..origin.offset + origin.len],
+            )),
             None => None,
         }
     }
@@ -94,16 +107,12 @@ impl PySyntaxTree {
     /// Returns an iterator of events for traversing the tree.
     #[text_signature = "($self)"]
     fn events(&mut self) -> PyResult<NodeEventIter> {
-        let event = Python::with_gil(|py| {
-            PyNodeEvent {
-                event: None,
-                node: Py::new(py,self.tree.clone()).unwrap(),
-            }
+        let event = Python::with_gil(|py| PyNodeEvent {
+            event: None,
+            node: Py::new(py, self.tree.clone()).unwrap(),
         });
         let events = vec![event];
-        Ok(NodeEventIter {
-            events: events,
-        })
+        Ok(NodeEventIter { events: events })
     }
 }
 
@@ -111,13 +120,9 @@ impl PySyntaxTree {
 impl PyIterProtocol for PySyntaxTree {
     /// Returns a simple iterator for viewing the tree.
     fn __iter__(slf: PyRefMut<Self>) -> PyResult<NodeIter> {
-        let node = Python::with_gil(|py| {
-            Py::new(py, slf.tree.clone())
-        })?;
+        let node = Python::with_gil(|py| Py::new(py, slf.tree.clone()))?;
         let nodes = vec![node];
-        Ok(NodeIter {
-            nodes: nodes,
-        })
+        Ok(NodeIter { nodes: nodes })
     }
 }
 
@@ -219,29 +224,21 @@ impl PySyntaxNode {
     /// This object will iterate through NodeEvent objects
     #[text_signature = "($self)"]
     fn events(&self) -> PyResult<NodeEventIter> {
-        let event = Python::with_gil(|py| {
-            PyNodeEvent {
-                event: None,
-                node: Py::new(py,self.clone()).unwrap(),
-            }
+        let event = Python::with_gil(|py| PyNodeEvent {
+            event: None,
+            node: Py::new(py, self.clone()).unwrap(),
         });
         let events = vec![event];
-        Ok(NodeEventIter {
-            events: events,
-        })
+        Ok(NodeEventIter { events: events })
     }
 }
 
 #[pyproto]
 impl PyIterProtocol for PySyntaxNode {
     fn __iter__(slf: PyRefMut<Self>) -> PyResult<NodeIter> {
-        let node = Python::with_gil(|py| {
-            Py::new(py, slf.clone())
-        })?;
+        let node = Python::with_gil(|py| Py::new(py, slf.clone()))?;
         let nodes = vec![node];
-        Ok(NodeIter {
-            nodes: nodes,
-        })
+        Ok(NodeIter { nodes: nodes })
     }
 }
 

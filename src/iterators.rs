@@ -66,7 +66,7 @@ impl PyIterProtocol for NodeEventIter {
                         event.event = Some(String::from("Enter"));
 
                         // Add children to our list of events to iterate through
-                        // 
+                        //
                         let mut children = event.node.borrow(py).children.clone();
                         children.reverse();
                         for child in children {

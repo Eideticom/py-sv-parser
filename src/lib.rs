@@ -6,23 +6,26 @@
 //! but that's very much above my skill level at the moment.
 
 // Turns out large syntax trees can recurse a lot.
-#![recursion_limit="256"]
+#![recursion_limit = "256"]
 
-mod iterators;
 mod defines;
+mod iterators;
 mod tree;
 
 use pyo3::prelude::*;
-use pyo3::{PyIterProtocol, wrap_pyfunction};
+use pyo3::{wrap_pyfunction, PyIterProtocol};
 
-use iterators::*;
 use defines::*;
+use iterators::*;
 use tree::*;
 
 /// Finds the first node of one of the given types in the provided node.
 #[pyfunction]
 #[text_signature = "(node, node_types)"]
-fn unwrap_node(node: PyRefMut<PySyntaxNode>, node_types: Vec<String>) -> PyResult<Option<Py<PySyntaxNode>>> {
+fn unwrap_node(
+    node: PyRefMut<PySyntaxNode>,
+    node_types: Vec<String>,
+) -> PyResult<Option<Py<PySyntaxNode>>> {
     return Python::with_gil(|py| {
         let iter = PySyntaxNode::__iter__(node).unwrap();
         let iter = PyCell::new(py, iter).unwrap();
@@ -36,7 +39,6 @@ fn unwrap_node(node: PyRefMut<PySyntaxNode>, node_types: Vec<String>) -> PyResul
             } else {
                 break;
             }
-            
         }
 
         Ok(None)
