@@ -25,12 +25,9 @@ impl PySyntaxTree {
     /// Gets the original string from a node.
     #[text_signature = "($self, node)"]
     fn get_str(&self, node: &PySyntaxNode) -> Option<String> {
-        match node.origin.clone() {
-            Some(origin) => Some(String::from(
-                &self.text[origin.offset..origin.offset + origin.len],
-            )),
-            None => None,
-        }
+        node.origin
+            .clone()
+            .map(|origin| String::from(&self.text[origin.offset..origin.offset + origin.len]))
     }
 
     /// Returns an iterator of events for traversing the tree.

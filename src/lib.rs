@@ -9,10 +9,9 @@
 #![recursion_limit = "256"]
 
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::prelude::*;
 use std::path::PathBuf;
 
+use pyo3::exceptions::PyFileNotFoundError;
 use pyo3::prelude::*;
 use pyo3::types::*;
 use pyo3::{wrap_pyfunction, PyIterProtocol};
@@ -38,45 +37,21 @@ fn parse_sv(
     allow_incomplete: bool,
 ) -> PyResult<PySyntaxTree> {
     let defines = process_pre_defines(pre_defines);
-    let (tree, _defines) = match lib_parse_sv(
+    let (tree, _defines) = lib_parse_sv(
         path,
         &defines,
         &include_paths,
         ignore_include,
         allow_incomplete,
-    ) {
-        Ok(results) => results,
-        Err(e) => {
-            return Err(pyo3::exceptions::PyFileNotFoundError::new_err(format!(
-                "{}",
-                e
-            )))
-        }
-    };
+    )
+    .map_err(|e| PyFileNotFoundError::new_err(format!("{}", e)))?;
 
     // Grab first node
     let node = (&tree).into_iter().next().unwrap();
 
     // Read in original file
-    let mut text = String::new();
-    let mut file = match File::open(path) {
-        Ok(file) => file,
-        Err(e) => {
-            return Err(pyo3::exceptions::PyFileNotFoundError::new_err(format!(
-                "{}",
-                e
-            )));
-        }
-    };
-    match file.read_to_string(&mut text) {
-        Err(e) => {
-            return Err(pyo3::exceptions::PyFileNotFoundError::new_err(format!(
-                "{}",
-                e
-            )));
-        }
-        _ => (),
-    }
+    let text = std::fs::read_to_string(path)
+        .map_err(|e| pyo3::exceptions::PyFileNotFoundError::new_err(format!("{}", e)))?;
 
     let tree = PySyntaxNode::build_tree(node, &tree);
     Ok(PySyntaxTree {
@@ -98,22 +73,15 @@ fn parse_sv_str(
 ) -> PyResult<PySyntaxTree> {
     let defines = process_pre_defines(pre_defines);
     let path = PathBuf::from(path);
-    let (tree, _defines) = match lib_parse_sv_str(
+    let (tree, _defines) = lib_parse_sv_str(
         text,
         path,
         &defines,
         &include_paths,
         ignore_include,
         allow_incomplete,
-    ) {
-        Ok(results) => results,
-        Err(e) => {
-            return Err(pyo3::exceptions::PyFileNotFoundError::new_err(format!(
-                "{}",
-                e
-            )))
-        }
-    };
+    )
+    .map_err(|e| PyFileNotFoundError::new_err(format!("{}", e)))?;
 
     // Grab first node
     let node = (&tree).into_iter().next().unwrap();
@@ -129,18 +97,17 @@ fn parse_sv_str(
 /// Transform a Python dictionary into the HashMap required by parse_sv
 fn process_pre_defines(pre_defines: &PyDict) -> HashMap<String, Option<Define>> {
     // Convert dictionary to correct define types
-    let mut defines = HashMap::new();
-    for key in pre_defines.keys() {
-        let define = pre_defines.get_item(key).unwrap();
-        let define = match define.extract::<PyDefine>() {
-            Ok(def) => Some(def.into_inner()),
-            Err(_) => None,
-        };
-        let key = key.downcast::<PyString>().unwrap();
-        let key = key.to_string();
-        defines.insert(key.clone(), define);
-    }
-    defines
+    pre_defines
+        .iter()
+        .map(|(key, define)| {
+            let define = define
+                .extract::<PyDefine>()
+                .map(|def| def.into_inner())
+                .ok();
+            let key = key.downcast::<PyString>().unwrap();
+            (key.to_string(), define)
+        })
+        .collect()
 }
 
 /// Finds the first node of one of the given types in the provided node.

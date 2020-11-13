@@ -54,16 +54,15 @@ pub struct PyDefineText {
 impl PyDefineText {
     #[new]
     fn new(text: String, origin: Option<(String, usize, usize)>) -> Self {
-        let origin = match origin {
-            Some((path, beg, end)) => Some((
+        let origin = origin.map(|(path, beg, end)| {
+            (
                 PathBuf::from(path),
                 Range {
                     begin: beg,
                     end: end,
                 },
-            )),
-            None => None,
-        };
+            )
+        });
 
         Self {
             inner: DefineText::new(text, origin),
