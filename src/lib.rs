@@ -10,7 +10,8 @@
 
 use std::collections::{HashMap, hash_map::RandomState};
 
-use pyo3::exceptions::PyFileNotFoundError;
+// TODO custom exceptions
+use pyo3::exceptions::{PyFileNotFoundError, PyTypeError};
 use pyo3::prelude::*;
 use pyo3::types::*;
 use pyo3::{wrap_pyfunction, PyIterProtocol};
@@ -187,36 +188,59 @@ fn process_pre_defines(pre_defines: &PyDict) -> HashMap<String, Option<Define>> 
 }
 
 /// Finds the first node of one of the given types in the provided node.
-#[pyfunction]
-#[text_signature = "(node, node_types)"]
+#[pyfunction(node_types="*")]
+#[text_signature = "(node, *node_types)"]
 fn unwrap_node(
+    py: Python,
     node: PyRefMut<PySyntaxNode>,
-    node_types: Vec<String>,
+    node_types: &PyTuple,
 ) -> PyResult<Option<Py<PySyntaxNode>>> {
-    return Python::with_gil(|py| {
-        let iter = PySyntaxNode::__iter__(node).unwrap();
-        let iter = PyCell::new(py, iter).unwrap();
-        loop {
-            let node = NodeIter::__next__(iter.borrow_mut());
-
-            if let Some(node) = node {
-                if node_types.contains(&node.type_name) {
-                    return Ok(Some(Py::new(py, node).unwrap()));
+    // Convert all input node types to text, fail if not given a correct type
+    let mut types: Vec<String> = Vec::new();
+    for t in node_types {
+        if let Ok(t) = t.extract::<String>() {
+            types.push(t);
+        } else if let Ok(list) = t.downcast::<PyList>() {
+            // XXX Should we support this? If we shouldn't remove it in the next release.
+            for t in list {
+                if let Ok(t) = t.extract::<String>() {
+                    types.push(t);
+                } else {
+                    let type_name = t.get_type().name().to_string();
+                    let msg = format!("Expected 'str' in list of node types, got '{}'", type_name);
+                    return Err(PyTypeError::new_err(msg));
                 }
-            } else {
-                break;
             }
+        } else {
+            let type_name = t.get_type().name().to_string();
+            let msg = format!("Expected 'str' or 'list' of 'str' as node type, got '{}'", type_name);
+            return Err(PyTypeError::new_err(msg));
         }
+    }
 
-        Ok(None)
-    });
+    let iter = PySyntaxNode::__iter__(node).unwrap();
+    let iter = PyCell::new(py, iter).unwrap();
+    loop {
+        let node = NodeIter::__next__(iter.borrow_mut());
+
+        if let Some(node) = node {
+            if types.contains(&node.type_name) {
+                return Ok(Some(Py::new(py, node).unwrap()));
+            }
+        } else {
+            break;
+        }
+    }
+
+    Ok(None)
 }
 
 /// Finds the first locate node in the provided node.
 #[pyfunction]
 #[text_signature = "(node)"]
-fn unwrap_locate(node: PyRefMut<PySyntaxNode>) -> PyResult<Option<Py<PySyntaxNode>>> {
-    unwrap_node(node, vec![String::from("Locate")])
+fn unwrap_locate(py: Python, node: PyRefMut<PySyntaxNode>) -> PyResult<Option<Py<PySyntaxNode>>> {
+    let locate = PyTuple::new(py, vec!["Locate"]);
+    unwrap_node(py, node, &locate)
 }
 
 /// Simple Python wrapper for sv-parser.
