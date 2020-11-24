@@ -19,7 +19,6 @@ pub struct PySyntaxTree {
     pub text: String,
 }
 
-// TODO implement pre_defines... somehow
 #[pymethods]
 impl PySyntaxTree {
     /// Gets the original string from a node.
@@ -114,27 +113,25 @@ impl PySyntaxNode {
         let mut children = Vec::new();
         let mut level: usize = 0;
         // EXTREMELY naive tree building
-        for node in node.into_iter().event() {
-            match node {
-                NodeEvent::Enter(node) => {
-                    // First node is always this node...
-                    if level == 1 {
-                        Python::with_gil(|py| {
-                            let node = Py::new(py, PySyntaxNode::build_tree(node, tree));
-                            if let Ok(node) = node {
-                                children.push(node);
-                            } else {
-                                // TODO error handling
-                            }
-                        })
+        // GIL closure placed here to avoid acquiring it every loop
+        Python::with_gil(|py| {
+            for node in node.into_iter().event() {
+                match node {
+                    NodeEvent::Enter(node) => {
+                        // First node is always this node...
+                        if level == 1 {
+                            // unwrap() here because this should not fail
+                            let node = Py::new(py, PySyntaxNode::build_tree(node, tree)).unwrap();
+                            children.push(node);
+                        }
+                        level += 1;
                     }
-                    level += 1;
-                }
-                NodeEvent::Leave(_) => {
-                    level -= 1;
+                    NodeEvent::Leave(_) => {
+                        level -= 1;
+                    }
                 }
             }
-        }
+        });
 
         Self {
             origin: origin,
