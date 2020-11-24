@@ -1,13 +1,24 @@
 [package]
 name = "py_sv_parser"
-version = "0.2.0"
+version = "0.2.2"
 authors = ["David Lenfesty <david.lenfesty@eideticom.com>"]
 edition = "2018"
+description = "Python bindings for SystemVerilog parsing."
+readme = "README.md"
+
+[package.metadata.maturin]
+maintainer = "David Lenfesty"
+maintainer-email = "david.lenfesty@eideticom.com"
+project-url = ["Homepage, https://github.com/Eideticom/py-sv-parser"]
+classifier = [
+        "Programming Language :: Python",
+        "Programming Language :: Rust",
+        "License :: OSI Approved :: BSD License",
+        "Natural Language :: English"
+]
 
 [lib]
 crate-type = ["cdylib"]
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 sv-parser = "0.9.0"
