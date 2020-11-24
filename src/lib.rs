@@ -8,15 +8,17 @@
 // Turns out large syntax trees can recurse a lot.
 #![recursion_limit = "256"]
 
-use std::collections::HashMap;
-use std::path::PathBuf;
+use std::collections::{HashMap, hash_map::RandomState};
 
 use pyo3::exceptions::PyFileNotFoundError;
 use pyo3::prelude::*;
 use pyo3::types::*;
 use pyo3::{wrap_pyfunction, PyIterProtocol};
 use sv_parser::Define;
-use sv_parser::{parse_sv as lib_parse_sv, parse_sv_str as lib_parse_sv_str};
+use sv_parser::{
+    parse_lib as lib_parse_lib, parse_lib_str as lib_parse_lib_str, parse_sv as lib_parse_sv,
+    parse_sv_str as lib_parse_sv_str, SyntaxTree, Defines, Error
+};
 
 mod defines;
 mod iterators;
@@ -26,18 +28,42 @@ use defines::*;
 use iterators::*;
 use tree::*;
 
-/// Parse file at given path for SV syntax tree.
-#[pyfunction]
-#[text_signature = "(path, pre_defines, include_paths, ignore_include, allow_incomplete)"]
-fn parse_sv(
-    path: &str,
+// XXX I think I could potentially remove the generics from these types,
+//     but then I run into lifetime issues, not too sure how to deal with
+//     that but it's not too terrible to leave it as is so I'm doing that.
+
+/// Generic type for an sv-parser function that parses from the provided file.
+type ParseFile<T, U, V> =
+    fn(
+        path: T,
+        pre_defines: &HashMap<String, Option<Define>, V>,
+        include_paths: &[U],
+        ignore_include: bool,
+        allow_incomplete: bool,
+    ) -> Result<(SyntaxTree, Defines), Error>;
+
+/// Generic type for an sv-parser function that parses from the given text.
+type ParseText<T, U, V> =
+    fn(
+        s: &str,
+        path: T,
+        pre_defines: &HashMap<String, Option<Define>, V>,
+        include_paths: &[U],
+        ignore_include: bool,
+        allow_incomplete: bool
+    ) -> Result<(SyntaxTree, Defines), Error>;
+
+/// Generically parses a provided file using the provided sv-parser library function.
+fn parse_file<'a>(
+    parse_fn: ParseFile<&'a str, String, RandomState>,
+    path: &'a str,
     pre_defines: &PyDict,
     include_paths: Vec<String>,
     ignore_include: bool,
     allow_incomplete: bool,
 ) -> PyResult<PySyntaxTree> {
     let defines = process_pre_defines(pre_defines);
-    let (tree, _defines) = lib_parse_sv(
+    let (tree, _defines) = parse_fn(
         path,
         &defines,
         &include_paths,
@@ -60,20 +86,18 @@ fn parse_sv(
     })
 }
 
-/// Parse provided text for SV syntax tree.
-#[pyfunction]
-#[text_signature = "(text, path, pre_defines, include_paths, ignore_include, allow_incomplete)"]
-fn parse_sv_str(
-    text: &str,
-    path: &str,
+/// Base function to remove redundant code
+fn parse_text<'a>(
+    parse_fn: ParseText<&'a str, String, RandomState>,
+    text: &'a str,
+    path: &'a str,
     pre_defines: &PyDict,
     include_paths: Vec<String>,
     ignore_include: bool,
     allow_incomplete: bool,
 ) -> PyResult<PySyntaxTree> {
     let defines = process_pre_defines(pre_defines);
-    let path = PathBuf::from(path);
-    let (tree, _defines) = lib_parse_sv_str(
+    let (tree, _defines) = parse_fn(
         text,
         path,
         &defines,
@@ -92,6 +116,58 @@ fn parse_sv_str(
         tree: tree,
         text: String::from(text),
     })
+}
+
+/// Parse file at given path for SV syntax tree.
+#[pyfunction]
+#[text_signature = "(path, pre_defines, include_paths, ignore_include, allow_incomplete)"]
+fn parse_sv(
+    path: &str,
+    pre_defines: &PyDict,
+    include_paths: Vec<String>,
+    ignore_include: bool,
+    allow_incomplete: bool,
+) -> PyResult<PySyntaxTree> {
+    parse_file(lib_parse_sv, path, pre_defines, include_paths, ignore_include, allow_incomplete)
+}
+
+/// Parse provided text for SV syntax tree.
+#[pyfunction]
+#[text_signature = "(text, path, pre_defines, include_paths, ignore_include, allow_incomplete)"]
+fn parse_sv_str(
+    text: &str,
+    path: &str,
+    pre_defines: &PyDict,
+    include_paths: Vec<String>,
+    ignore_include: bool,
+    allow_incomplete: bool,
+) -> PyResult<PySyntaxTree> {
+    parse_text(lib_parse_sv_str, text, path, pre_defines, include_paths, ignore_include, allow_incomplete)
+}
+
+#[pyfunction]
+#[text_signature = "(path, pre_defines, include_paths, ignore_include, allow_incomplete)"]
+fn parse_lib(
+    path: &str,
+    pre_defines: &PyDict,
+    include_paths: Vec<String>,
+    ignore_include: bool,
+    allow_incomplete: bool,
+) -> PyResult<PySyntaxTree> {
+    parse_file(lib_parse_lib, path, pre_defines, include_paths, ignore_include, allow_incomplete)
+}
+
+#[pyfunction]
+#[text_signature = "(text, path, pre_defines, include_paths, ignore_include, allow_incomplete)"]
+fn parse_lib_str(
+    text: &str,
+    path: &str,
+    pre_defines: &PyDict,
+    include_paths: Vec<String>,
+    ignore_include: bool,
+    allow_incomplete: bool,
+) -> PyResult<PySyntaxTree> {
+    parse_text(lib_parse_lib_str, text, path, pre_defines, include_paths, ignore_include, allow_incomplete)
 }
 
 /// Transform a Python dictionary into the HashMap required by parse_sv
@@ -151,6 +227,8 @@ fn py_sv_parser(_py: Python, module: &PyModule) -> PyResult<()> {
     // Main parsing functions
     module.add_function(wrap_pyfunction!(parse_sv, module)?)?;
     module.add_function(wrap_pyfunction!(parse_sv_str, module)?)?;
+    module.add_function(wrap_pyfunction!(parse_lib, module)?)?;
+    module.add_function(wrap_pyfunction!(parse_lib_str, module)?)?;
 
     // Convenience functions
     module.add_function(wrap_pyfunction!(unwrap_node, module)?)?;
