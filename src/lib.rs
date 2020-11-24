@@ -119,8 +119,8 @@ fn parse_text<'a>(
 }
 
 /// Parse file at given path for SV syntax tree.
-#[pyfunction]
-#[text_signature = "(path, pre_defines, include_paths, ignore_include, allow_incomplete)"]
+#[pyfunction(ignore_include = "false", allow_incomplete = "false")]
+#[text_signature = "(path, pre_defines, include_paths, ignore_include=False, allow_incomplete=False)"]
 fn parse_sv(
     path: &str,
     pre_defines: &PyDict,
@@ -132,8 +132,8 @@ fn parse_sv(
 }
 
 /// Parse provided text for SV syntax tree.
-#[pyfunction]
-#[text_signature = "(text, path, pre_defines, include_paths, ignore_include, allow_incomplete)"]
+#[pyfunction(ignore_include = "false", allow_incomplete = "false")]
+#[text_signature = "(text, path, pre_defines, include_paths, ignore_include=False, allow_incomplete=False)"]
 fn parse_sv_str(
     text: &str,
     path: &str,
@@ -145,8 +145,8 @@ fn parse_sv_str(
     parse_text(lib_parse_sv_str, text, path, pre_defines, include_paths, ignore_include, allow_incomplete)
 }
 
-#[pyfunction]
-#[text_signature = "(path, pre_defines, include_paths, ignore_include, allow_incomplete)"]
+#[pyfunction(ignore_include = "false", allow_incomplete = "false")]
+#[text_signature = "(path, pre_defines, include_paths, ignore_include=False, allow_incomplete=False)"]
 fn parse_lib(
     path: &str,
     pre_defines: &PyDict,
@@ -157,8 +157,8 @@ fn parse_lib(
     parse_file(lib_parse_lib, path, pre_defines, include_paths, ignore_include, allow_incomplete)
 }
 
-#[pyfunction]
-#[text_signature = "(text, path, pre_defines, include_paths, ignore_include, allow_incomplete)"]
+#[pyfunction(ignore_include = "false", allow_incomplete = "false")]
+#[text_signature = "(text, path, pre_defines, include_paths, ignore_include=False, allow_incomplete=False)"]
 fn parse_lib_str(
     text: &str,
     path: &str,
