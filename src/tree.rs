@@ -5,6 +5,9 @@ use sv_parser::{NodeEvent, RefNode, SyntaxTree};
 
 use crate::iterators::*;
 
+use std::fs::File;
+use std::io::{Read, Seek, SeekFrom};
+
 /// Representation of a top-level syntax tree.
 ///
 /// Iterate on this class to iterate through the entire tree.
@@ -24,9 +27,23 @@ impl PySyntaxTree {
     /// Gets the original string from a node.
     #[text_signature = "($self, node)"]
     fn get_str(&self, node: &PySyntaxNode) -> Option<String> {
-        node.origin
-            .clone()
-            .map(|origin| String::from(&self.text[origin.offset..origin.offset + origin.len]))
+        let origin = node.origin.clone()?;
+        let input_file = self.tree.origin.clone().unwrap().file;
+        if input_file == origin.file {
+            Some(String::from(
+                &self.text[origin.offset..origin.offset + origin.len],
+            ))
+        } else {
+            let mut text = String::new();
+            let mut file = File::open(origin.file).ok()?;
+            file.seek(SeekFrom::Start(origin.offset as u64)).ok()?;
+            if let Some(len) = file.take(origin.len as u64).read_to_string(&mut text).ok() {
+                if len != origin.len {
+                    return None;
+                }
+            }
+            Some(text)
+        }
     }
 
     /// Returns an iterator of events for traversing the tree.
