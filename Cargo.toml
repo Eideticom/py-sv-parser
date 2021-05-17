@@ -9,13 +9,15 @@ readme = "README.md"
 [package.metadata.maturin]
 maintainer = "David Lenfesty"
 maintainer-email = "david.lenfesty@eideticom.com"
-project-url = ["Homepage, https://github.com/Eideticom/py-sv-parser"]
 classifier = [
         "Programming Language :: Python",
         "Programming Language :: Rust",
         "License :: OSI Approved :: BSD License",
         "Natural Language :: English"
 ]
+
+[package.metadata.maturin.project-url]
+Homepage = "https://github.com/Eideticom/py-sv-parser"
 
 [lib]
 crate-type = ["cdylib"]
