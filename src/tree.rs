@@ -1,12 +1,9 @@
 use pyo3::prelude::*;
 use pyo3::PyIterProtocol;
 
-use sv_parser::{NodeEvent, RefNode, SyntaxTree};
+use sv_parser::{NodeEvent, RefNode, SyntaxTree, Locate};
 
 use crate::iterators::*;
-
-use std::fs::File;
-use std::io::{Read, Seek, SeekFrom};
 
 /// Representation of a top-level syntax tree.
 ///
@@ -18,6 +15,9 @@ pub struct PySyntaxTree {
     #[pyo3(get)]
     pub tree: PySyntaxNode,
 
+    /// Internal tree, used for pulling origin.
+    pub sv_tree: SyntaxTree,
+
     /// Private, used for get_str
     pub text: String,
 }
@@ -27,23 +27,23 @@ impl PySyntaxTree {
     /// Gets the original string from a node.
     #[text_signature = "($self, node)"]
     fn get_str(&self, node: &PySyntaxNode) -> Option<String> {
-        let origin = node.origin.clone()?;
-        let input_file = self.tree.origin.clone().unwrap().file;
-        if input_file == origin.file {
-            Some(String::from(
-                &self.text[origin.offset..origin.offset + origin.len],
-            ))
-        } else {
-            let mut text = String::new();
-            let mut file = File::open(origin.file).ok()?;
-            file.seek(SeekFrom::Start(origin.offset as u64)).ok()?;
-            if let Some(len) = file.take(origin.len as u64).read_to_string(&mut text).ok() {
-                if len != origin.len {
-                    return None;
-                }
-            }
-            Some(text)
-        }
+        let origin = node.location.clone()?;
+        Some(String::from(
+            &self.text[origin.offset..origin.offset + origin.len],
+        ))
+    }
+
+    #[text_signature = "($self, node)"]
+    fn get_origin(&self, node: PySyntaxNode) -> Option<(String, usize)> {
+        let locate = node.location?;
+        let locate = Locate{
+            offset: locate.offset,
+            len: locate.len,
+            line: 0,
+        };
+        let (path, offset) = self.sv_tree.get_origin(&locate)?;
+        let path = String::from(path.to_str()?);
+        Some((path, offset))
     }
 
     /// Returns an iterator of events for traversing the tree.
@@ -72,10 +72,8 @@ impl PyIterProtocol for PySyntaxTree {
 #[pyclass(name=SyntaxNode)]
 #[derive(Clone)]
 pub struct PySyntaxNode {
-    /// Placement and length in original file.
-    /// Optional because of preprocessor shenanigans
-    #[pyo3(get)]
-    pub origin: Option<PySyntaxLocation>,
+    /// Placement and length in processed tree.
+    pub location: Option<PySyntaxLocation>,
     /// Name of the type in the syntax tree.
     /// Notably provided in PascalCase, as opposed to the snake_case used in the standard.
     #[pyo3(get)]
@@ -90,9 +88,9 @@ impl PySyntaxNode {
     pub fn build_tree(node: RefNode, tree: &SyntaxTree) -> Self {
         let name = format!("{}", node);
         // Basically pulled wholesale from get_str() impl on SyntaxTree
-        let mut offset: Option<usize> = None;
-        let mut file: Option<String> = None;
+        //let mut offset: Option<usize> = None;
         let mut beg: Option<usize> = None;
+        let mut line: Option<u32> = None;
         let mut end: usize = 0;
         // Every Locate node is a piece of text, so when we iterate
         // over all of them, we get all of the text contained in the node.
@@ -100,31 +98,21 @@ impl PySyntaxNode {
             if let RefNode::Locate(x) = n {
                 if beg.is_none() {
                     beg = Some(x.offset);
+                    line = Some(x.line);
                 }
                 end = x.offset + x.len;
-
-                if file.is_none() {
-                    if let Some((path, off)) = tree.get_origin(x) {
-                        file = Some(String::from(path.to_str().unwrap()));
-                        offset = Some(off)
-                    }
-                }
             }
         }
 
-        // TODO
-        // Potential soundness issue, depends on how we want to wrap things.
-        // This gives the preprocessed text length which likely shouldn't go
-        // in a member named "origin"
-        let origin: Option<PySyntaxLocation>;
+        let location: Option<PySyntaxLocation>;
         if let Some(beg) = beg {
-            origin = Some(PySyntaxLocation {
-                file: file.unwrap(),
-                offset: offset.unwrap(),
+            location = Some(PySyntaxLocation {
+                offset: beg,
                 len: end - beg,
+                line: line.unwrap(),
             })
         } else {
-            origin = None;
+            location = None;
         }
 
         let mut children = Vec::new();
@@ -151,7 +139,7 @@ impl PySyntaxNode {
         });
 
         Self {
-            origin: origin,
+            location: location,
             type_name: name,
             children: children,
         }
@@ -186,14 +174,19 @@ impl PyIterProtocol for PySyntaxNode {
 #[pyclass(name=SyntaxLocation)]
 #[derive(Clone)]
 pub struct PySyntaxLocation {
-    /// Original file this came from.
-    /// Only relevant if file uses `include's, because then syntax can come from anywhere.
-    #[pyo3(get)]
-    pub file: String,
-    /// Offset of syntax piece in original file.
+    /// Offset of syntax piece in processed text.
     #[pyo3(get)]
     pub offset: usize,
-    /// Length of syntax node in original file.
+    /// Length of syntax node in processed text.
     #[pyo3(get)]
     pub len: usize,
+
+    /// Line of syntax node in processed text.
+    #[pyo3(get)]
+    pub line: u32,
+}
+
+#[pyclass(name=SyntaxOrigin)]
+#[derive(Clone)]
+pub struct PySyntaxOrigin {
 }

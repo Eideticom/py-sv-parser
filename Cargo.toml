@@ -1,6 +1,6 @@
 [package]
 name = "py_sv_parser"
-version = "0.2.1"
+version = "0.3.0"
 authors = ["David Lenfesty <david.lenfesty@eideticom.com>"]
 edition = "2018"
 description = "Python bindings for SystemVerilog parsing."
@@ -23,8 +23,8 @@ Homepage = "https://github.com/Eideticom/py-sv-parser"
 crate-type = ["cdylib"]
 
 [dependencies]
-sv-parser = "0.9.0"
-sv-parser-pp = "0.9.0"
+sv-parser = "0.11.1"
+sv-parser-pp = "0.11.1"
 
 [dependencies.pyo3]
 version = "0.12.3"

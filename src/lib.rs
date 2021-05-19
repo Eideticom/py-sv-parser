@@ -18,7 +18,7 @@ use pyo3::{wrap_pyfunction, PyIterProtocol};
 use sv_parser::Define;
 use sv_parser::{
     parse_lib as lib_parse_lib, parse_lib_str as lib_parse_lib_str, parse_sv as lib_parse_sv,
-    parse_sv_str as lib_parse_sv_str, SyntaxTree, Defines, Error
+    parse_sv_str as lib_parse_sv_str, SyntaxTree, Defines, Error, RefNode
 };
 
 mod defines;
@@ -64,7 +64,7 @@ fn parse_file<'a>(
     allow_incomplete: bool,
 ) -> PyResult<PySyntaxTree> {
     let defines = process_pre_defines(pre_defines);
-    let (tree, _defines) = parse_fn(
+    let (sv_tree, _defines) = parse_fn(
         path,
         &defines,
         &include_paths,
@@ -74,16 +74,21 @@ fn parse_file<'a>(
     .map_err(|e| PyFileNotFoundError::new_err(format!("{}", e)))?;
 
     // Grab first node
-    let node = (&tree).into_iter().next().unwrap();
+    let node = (&sv_tree).into_iter().next().unwrap();
 
-    // Read in original file
-    let text = std::fs::read_to_string(path)
-        .map_err(|e| pyo3::exceptions::PyFileNotFoundError::new_err(format!("{}", e)))?;
+    // Pull text from original tree
+    let text: String;
+    if let RefNode::SourceText(foo) = node {
+        text = String::from(sv_tree.get_str(foo).unwrap());
+    } else {
+        unreachable!();
+    }
 
-    let tree = PySyntaxNode::build_tree(node, &tree);
+    let tree = PySyntaxNode::build_tree(node, &sv_tree);
     Ok(PySyntaxTree {
-        tree: tree,
-        text: text,
+        tree,
+        sv_tree,
+        text,
     })
 }
 
@@ -98,7 +103,7 @@ fn parse_text<'a>(
     allow_incomplete: bool,
 ) -> PyResult<PySyntaxTree> {
     let defines = process_pre_defines(pre_defines);
-    let (tree, _defines) = parse_fn(
+    let (sv_tree, _defines) = parse_fn(
         text,
         path,
         &defines,
@@ -109,12 +114,13 @@ fn parse_text<'a>(
     .map_err(|e| PyFileNotFoundError::new_err(format!("{}", e)))?;
 
     // Grab first node
-    let node = (&tree).into_iter().next().unwrap();
+    let node = (&sv_tree).into_iter().next().unwrap();
 
     // Read in original file
-    let tree = PySyntaxNode::build_tree(node, &tree);
+    let tree = PySyntaxNode::build_tree(node, &sv_tree);
     Ok(PySyntaxTree {
         tree: tree,
+        sv_tree: sv_tree,
         text: String::from(text),
     })
 }
