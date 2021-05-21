@@ -73,6 +73,7 @@ impl PyIterProtocol for PySyntaxTree {
 #[derive(Clone)]
 pub struct PySyntaxNode {
     /// Placement and length in processed tree.
+    #[pyo3(get)]
     pub location: Option<PySyntaxLocation>,
     /// Name of the type in the syntax tree.
     /// Notably provided in PascalCase, as opposed to the snake_case used in the standard.
@@ -184,9 +185,4 @@ pub struct PySyntaxLocation {
     /// Line of syntax node in processed text.
     #[pyo3(get)]
     pub line: u32,
-}
-
-#[pyclass(name=SyntaxOrigin)]
-#[derive(Clone)]
-pub struct PySyntaxOrigin {
 }
