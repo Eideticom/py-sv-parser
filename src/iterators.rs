@@ -1,5 +1,4 @@
 use pyo3::prelude::*;
-use pyo3::PyIterProtocol;
 
 use crate::PySyntaxNode;
 
@@ -13,13 +12,13 @@ pub struct NodeIter {
     pub nodes: Vec<Py<PySyntaxNode>>,
 }
 
-#[pyproto]
-impl PyIterProtocol for NodeIter {
+#[pymethods]
+impl NodeIter {
     fn __iter__(slf: PyRef<Self>) -> PyRef<Self> {
         slf
     }
 
-    fn __next__(mut slf: PyRefMut<Self>) -> Option<PySyntaxNode> {
+    pub fn __next__(mut slf: PyRefMut<Self>) -> Option<PySyntaxNode> {
         match slf.nodes.pop() {
             Some(node) => {
                 let node = Python::with_gil(|py| {
@@ -44,8 +43,8 @@ pub struct NodeEventIter {
     pub events: Vec<PyNodeEvent>,
 }
 
-#[pyproto]
-impl PyIterProtocol for NodeEventIter {
+#[pymethods]
+impl NodeEventIter {
     fn __iter__(slf: PyRef<Self>) -> PyRef<Self> {
         slf
     }
@@ -87,7 +86,7 @@ impl PyIterProtocol for NodeEventIter {
 }
 
 /// Node event. The library should only return events with the event specified.
-#[pyclass(name=NodeEvent)]
+#[pyclass(name="NodeEvent")]
 #[derive(Clone)]
 pub struct PyNodeEvent {
     /// "Enter" or "Leave"
