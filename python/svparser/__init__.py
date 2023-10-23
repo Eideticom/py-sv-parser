@@ -1,5 +1,2 @@
-from ._svparser import *
-
-
-__doc__ = _svparser.__doc__
-__all__ = _svparser.__all__
+from .bindings import *
+from .lib import parse_sv_file, parse_sv_text

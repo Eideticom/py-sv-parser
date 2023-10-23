@@ -175,16 +175,16 @@ def parse_lib_str(
     """
 
 
-def unwrap_node(node: SyntaxNode, *node_types: str):
+def unwrap_node(node: SyntaxNode, node_types: Tuple[str, ...]) -> SyntaxNode:
     """Finds the first node of one of the given types descending from the provided node.
 
     Args:
         node: The start node from which to unwrap a node.
-        *node_types: The node types to search during the unwrap.
+        node_types: The node types to search during the unwrap.
     """
 
 
-def unwrap_locate(node: SyntaxNode):
+def unwrap_locate(node: SyntaxNode) -> SyntaxNode:
     """Finds the first locate node in the provided node.
 
     Note:
