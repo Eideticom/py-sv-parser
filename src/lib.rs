@@ -14,7 +14,7 @@ use std::collections::{HashMap, hash_map::RandomState};
 use pyo3::exceptions::{PyFileNotFoundError, PyTypeError};
 use pyo3::prelude::*;
 use pyo3::types::*;
-use pyo3::{wrap_pyfunction, PyIterProtocol};
+use pyo3::wrap_pyfunction;
 use sv_parser::Define;
 use sv_parser::{
     parse_lib as lib_parse_lib, parse_lib_str as lib_parse_lib_str, parse_sv as lib_parse_sv,
@@ -126,8 +126,7 @@ fn parse_text<'a>(
 }
 
 /// Parse file at given path for SV syntax tree.
-#[pyfunction(ignore_include = "false", allow_incomplete = "false")]
-#[text_signature = "(path, pre_defines, include_paths, ignore_include=False, allow_incomplete=False)"]
+#[pyfunction]
 fn parse_sv(
     path: &str,
     pre_defines: &PyDict,
@@ -139,8 +138,7 @@ fn parse_sv(
 }
 
 /// Parse provided text for SV syntax tree.
-#[pyfunction(ignore_include = "false", allow_incomplete = "false")]
-#[text_signature = "(text, path, pre_defines, include_paths, ignore_include=False, allow_incomplete=False)"]
+#[pyfunction]
 fn parse_sv_str(
     text: &str,
     path: &str,
@@ -152,8 +150,7 @@ fn parse_sv_str(
     parse_text(lib_parse_sv_str, text, path, pre_defines, include_paths, ignore_include, allow_incomplete)
 }
 
-#[pyfunction(ignore_include = "false", allow_incomplete = "false")]
-#[text_signature = "(path, pre_defines, include_paths, ignore_include=False, allow_incomplete=False)"]
+#[pyfunction]
 fn parse_lib(
     path: &str,
     pre_defines: &PyDict,
@@ -164,8 +161,7 @@ fn parse_lib(
     parse_file(lib_parse_lib, path, pre_defines, include_paths, ignore_include, allow_incomplete)
 }
 
-#[pyfunction(ignore_include = "false", allow_incomplete = "false")]
-#[text_signature = "(text, path, pre_defines, include_paths, ignore_include=False, allow_incomplete=False)"]
+#[pyfunction]
 fn parse_lib_str(
     text: &str,
     path: &str,
@@ -194,8 +190,7 @@ fn process_pre_defines(pre_defines: &PyDict) -> HashMap<String, Option<Define>> 
 }
 
 /// Finds the first node of one of the given types in the provided node.
-#[pyfunction(node_types="*")]
-#[text_signature = "(node, *node_types)"]
+#[pyfunction(text_signature = "(node, *node_types)")]
 fn unwrap_node(
     py: Python,
     node: PyRefMut<PySyntaxNode>,
@@ -212,13 +207,13 @@ fn unwrap_node(
                 if let Ok(t) = t.extract::<String>() {
                     types.push(t);
                 } else {
-                    let type_name = t.get_type().name().to_string();
+                    let type_name = t.get_type().name()?.to_string();
                     let msg = format!("Expected 'str' in list of node types, got '{}'", type_name);
                     return Err(PyTypeError::new_err(msg));
                 }
             }
         } else {
-            let type_name = t.get_type().name().to_string();
+            let type_name = t.get_type().name()?.to_string();
             let msg = format!("Expected 'str' or 'list' of 'str' as node type, got '{}'", type_name);
             return Err(PyTypeError::new_err(msg));
         }
@@ -242,8 +237,7 @@ fn unwrap_node(
 }
 
 /// Finds the first locate node in the provided node.
-#[pyfunction]
-#[text_signature = "(node)"]
+#[pyfunction(text_signature = "(node)")]
 fn unwrap_locate(py: Python, node: PyRefMut<PySyntaxNode>) -> PyResult<Option<Py<PySyntaxNode>>> {
     let locate = PyTuple::new(py, vec!["Locate"]);
     unwrap_node(py, node, &locate)
@@ -253,7 +247,7 @@ fn unwrap_locate(py: Python, node: PyRefMut<PySyntaxNode>) -> PyResult<Option<Py
 ///
 /// Does not export all features, but allows you to build a simple tree from an SV file.
 #[pymodule]
-fn py_sv_parser(_py: Python, module: &PyModule) -> PyResult<()> {
+fn _svparser(_py: Python, module: &PyModule) -> PyResult<()> {
     // Main parsing functions
     module.add_function(wrap_pyfunction!(parse_sv, module)?)?;
     module.add_function(wrap_pyfunction!(parse_sv_str, module)?)?;

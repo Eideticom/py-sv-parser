@@ -7,7 +7,7 @@ use sv_parser_pp::range::Range;
 /// Wrapper python type for sv-parser Define type
 ///
 /// Used to specify preprocessor defines.
-#[pyclass(name=Define)]
+#[pyclass(name="Define")]
 #[derive(Clone)]
 pub struct PyDefine {
     inner: Define,
@@ -44,7 +44,7 @@ impl PyDefine {
 /// Wrapper python type for sv-parser DefineText type
 ///
 /// Used for filling in what a preprocessor define expands to.
-#[pyclass(name=DefineText)]
+#[pyclass(name="DefineText")]
 #[derive(Clone)]
 pub struct PyDefineText {
     inner: DefineText,

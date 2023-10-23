@@ -1,31 +1,22 @@
 [package]
-name = "py_sv_parser"
-version = "0.3.0"
-authors = ["David Lenfesty <david.lenfesty@eideticom.com>"]
+name = "svparser"
+version = "0.4.0"
+authors = [
+        "David Lenfesty <david.lenfesty@eideticom.com>",
+        "Sunil Pai <sunilkpai93@gmail.com>"
+]
 edition = "2018"
 description = "Python bindings for SystemVerilog parsing."
 readme = "README.md"
-
-[package.metadata.maturin]
-maintainer = "David Lenfesty"
-maintainer-email = "david.lenfesty@eideticom.com"
-classifier = [
-        "Programming Language :: Python",
-        "Programming Language :: Rust",
-        "License :: OSI Approved :: BSD License",
-        "Natural Language :: English"
-]
-
-[package.metadata.maturin.project-url]
-Homepage = "https://github.com/Eideticom/py-sv-parser"
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
-sv-parser = "0.11.1"
-sv-parser-pp = "0.11.1"
+maturin = "1.3.0"
+sv-parser = "0.13.1"
+sv-parser-pp = "0.13.1"
 
 [dependencies.pyo3]
-version = "0.12.3"
+version = "0.20.0"
 features = ["extension-module"]
